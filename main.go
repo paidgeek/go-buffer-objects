@@ -35,6 +35,7 @@ type object struct {
 }
 
 type document struct {
+	PackageName      string `json:"package_name"`
 	ObjectsImpl      string
 	ObjectNameSuffix string `json:"object_name_suffix"`
 	Objects          []*object
@@ -111,7 +112,7 @@ func parseFile(file string, w io.Writer) error {
 }
 
 func getNextId() (uint16, error) {
-	for ; idCounter < (1 << 16) - 1; idCounter++ {
+	for idCounter++; idCounter < (1 << 16) - 1; idCounter++ {
 		if !usedIds.Contains(idCounter) {
 			return idCounter, nil
 		}
@@ -159,9 +160,9 @@ func executeTmpl(f *field, prefix string) (string, error) {
 		t = f.Type
 	}
 
-	ft = typeTmpl.Lookup("write_" + t)
+	ft = typeTmpl.Lookup(prefix + "_" + t)
 	if ft == nil {
-		return "", errors.New("template 'write_" + t + "' not found")
+		return "", errors.New("template '" + prefix + "_" + t + "' not found")
 	}
 
 	err := ft.Execute(buf, f)
@@ -202,9 +203,9 @@ func readArrayIndex(f *field) (string, error) {
 	return read(nf)
 }
 
-var langFlag = flag.String("lang", "", "target language")
-var schemaFlag = flag.String("schema", "", "schema files pattern")
-var outFlag = flag.String("out", "net_objects_result.go", "result file name")
+var langFlag = flag.String("t", "", "target language")
+var schemaFlag = flag.String("i", "", "input schema files pattern")
+var outFlag = flag.String("o", "net_objects_result.go", "result file name")
 
 func main() {
 	flag.Parse()
@@ -241,17 +242,6 @@ func main() {
 		"writeArrayIndex":writeArrayIndex,
 		"readArrayIndex":readArrayIndex,
 	})
-	/*
-		for k, v := range Templates {
-			if strings.HasPrefix(k, lang) {
-				typeTmpl, err = typeTmpl.Parse(v)
-				if err != nil {
-					log.Println(err)
-					return
-				}
-			}
-		}
-		*/
 
 	for _, n := range bindata.AssetNames() {
 		name := n[strings.IndexByte(n, '/') + 1:strings.LastIndexByte(n, '.')]
@@ -263,11 +253,6 @@ func main() {
 		}
 	}
 
-	/*
-		resFile, err := os.Create(*outFlag)
-		if err != nil {
-			return
-		}*/
 	cfgFile, err := ioutil.ReadFile("./bufobjects.json")
 	if err != nil {
 		log.Fatalln(err)
@@ -275,6 +260,9 @@ func main() {
 	}
 	doc = &document{
 		Objects:[]*object{},
+		PackageName:"main",
+		InterfaceName:"Object",
+		FactoryName:"NewObjectWithId",
 	}
 	if err := json.Unmarshal(cfgFile, doc); err != nil {
 		log.Fatalln(err)
@@ -282,12 +270,12 @@ func main() {
 	}
 
 	mainBuf = &bytes.Buffer{}
-	idCounter = 1
 	usedIds = hashset.New()
-	if err = parseFile(files[0], mainBuf); err != nil {
-		log.Fatalln(err)
-		os.Remove(*outFlag)
-		return
+	for _, f := range files {
+		if err = parseFile(f, mainBuf); err != nil {
+			log.Fatalln(err)
+			return
+		}
 	}
 
 	docTmpl, err := template.New("doc").Parse(string(bindata.MustAsset(lang + "/doc.tmpl")))
@@ -296,15 +284,14 @@ func main() {
 		return
 	}
 
+	resFile, err := os.Create(*outFlag)
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
 	doc.ObjectsImpl = mainBuf.String()
-	err = docTmpl.ExecuteTemplate(os.Stdout, "doc", doc)
-
-	/*
-	for _, f := range files {
-		if err = parseFile(f, resFile); err != nil {
-			log.Fatalln(err)
-			os.Remove(*outFlag)
-			return
-		}
-	}*/
+	err = docTmpl.ExecuteTemplate(resFile, "doc", doc)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
