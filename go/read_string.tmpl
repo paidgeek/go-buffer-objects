@@ -1,0 +1,6 @@
+d{{.Name}} := []byte(rcv.{{.Name}})
+n{{.Name}} := len(d{{.Name}})
+buf[off] = byte(n{{.Name}})
+buf[off + 1] = byte(n{{.Name}} >> 8)
+copy(buf[off + 2:], d{{.Name}})
+off += n{{.Name}} + 2

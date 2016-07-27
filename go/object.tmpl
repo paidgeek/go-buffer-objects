@@ -1,0 +1,67 @@
+type {{.Name}} struct {
+	{{- range .Fields}}
+	{{.Name}} {{.Type}}
+	{{- end}}
+}
+func (rcv *{{.Name}}) Id() uint16 {
+	return {{.Id}}
+}
+func (rcv *{{.Name}}) Size() int {
+	size := 0
+	{{- range .Fields}}
+	{{- if eq .Type "bool"}}
+	size += 1
+	{{- else if eq .Type "byte"}}
+	size += 1
+	{{- else if eq .Type "int"}}
+	size += 4
+	{{- else if eq .Type "int8"}}
+	size += 1
+	{{- else if eq .Type "int16"}}
+	size += 2
+	{{- else if eq .Type "int32"}}
+	size += 4
+	{{- else if eq .Type "int64"}}
+	size += 8
+	{{- else if eq .Type "uint"}}
+	size += 4
+	{{- else if eq .Type "uint8"}}
+	size += 1
+	{{- else if eq .Type "uint16"}}
+	size += 2
+	{{- else if eq .Type "uint32"}}
+	size += 4
+	{{- else if eq .Type "uint64"}}
+	size += 8
+	{{- else if eq .Type "float32"}}
+	size += 4
+	{{- else if eq .Type "float64"}}
+	size += 8
+	{{- else if eq .Type "string"}}
+	size += len(rcv.{{.Name}}) + 2
+	{{- end}}
+	{{- end}}
+	return size
+}
+func (rcv *{{.Name}}) IsVariableSize() bool {
+	return {{- if isVariableSize .}} true {{else}} false {{- end}}
+}
+func (rcv *{{.Name}}) Marshal(buf []byte, off int) int {
+	{{- range .Fields}}
+	{{write .}}
+	{{- end}}
+	return off
+}
+func (rcv *{{.Name}}) Unmarshal(buf []byte, off int) int {
+	{{- range .Fields}}
+	{{read .}}
+	{{- end}}
+	return off
+}
+func New{{.Name}}({{$params := .Fields}}{{range $index, $element := .Fields}}{{if $index}},{{end}}{{$element.CamelCase}} {{$element.Type}}{{end}}) *{{.Name}} {
+	return &{{.Name}}{
+		{{- range .Fields}}
+		{{.Name}}: {{.CamelCase}},
+		{{- end}}
+	}
+}

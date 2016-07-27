@@ -1,0 +1,9 @@
+{
+	"interface_name": "Message",
+	"object_name_suffix": "Message",
+	"factory_name": "NewMessageWithId",
+	"imports": [
+		"unsafe"
+	],
+	"object_id_type": "uint16"
+}

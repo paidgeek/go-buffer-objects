@@ -1,0 +1,29 @@
+package main
+import (
+	{{- range .Imports}}
+	"{{.}}"
+	{{- end}}
+)
+const (
+{{- range .Objects}}
+	Id{{.RawName}} {{$.ObjectIdType}} = {{.Id}}
+{{end -}}
+)
+type {{.InterfaceName}} interface {
+	Id() uint16
+	Size() int
+	IsVariableSize() bool
+	Marshal(buf []byte, off int) int
+	Unmarshal(buf []byte, off int) int
+}
+{{.ObjectsImpl}}
+func {{.FactoryName}}(id {{.ObjectIdType}}) {{.InterfaceName}} {
+	switch id {
+	{{- range .Objects}}
+	case {{.Id}}:
+		return &{{.Name}}{}
+	{{end -}}
+	default:
+		return nil
+	}
+}

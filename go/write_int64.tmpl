@@ -1,0 +1,9 @@
+buf[off] = byte(rcv.{{.Name}})
+buf[off + 1] = byte(rcv.{{.Name}} >> 8)
+buf[off + 2] = byte(rcv.{{.Name}} >> 16)
+buf[off + 3] = byte(rcv.{{.Name}} >> 24)
+buf[off + 4] = byte(rcv.{{.Name}} >> 32)
+buf[off + 5] = byte(rcv.{{.Name}} >> 40)
+buf[off + 6] = byte(rcv.{{.Name}} >> 48)
+buf[off + 7] = byte(rcv.{{.Name}} >> 56)
+off += 8
