@@ -6,7 +6,7 @@ import (
 )
 const (
 {{- range .Objects}}
-	Id{{.RawName}} {{$.ObjectIdType}} = {{.Id}}
+	Id{{.RawName}} uint16 = {{.Id}}
 {{end -}}
 )
 type {{.InterfaceName}} interface {
@@ -17,7 +17,7 @@ type {{.InterfaceName}} interface {
 	Unmarshal(buf []byte, off int) int
 }
 {{.ObjectsImpl}}
-func {{.FactoryName}}(id {{.ObjectIdType}}) {{.InterfaceName}} {
+func {{.FactoryName}}(id uint16) {{.InterfaceName}} {
 	switch id {
 	{{- range .Objects}}
 	case {{.Id}}:

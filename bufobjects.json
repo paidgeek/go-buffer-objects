@@ -4,6 +4,5 @@
 	"factory_name": "NewMessageWithId",
 	"imports": [
 		"unsafe"
-	],
-	"object_id_type": "uint16"
+	]
 }

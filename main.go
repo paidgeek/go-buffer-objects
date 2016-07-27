@@ -17,6 +17,8 @@ import (
 	"github.com/paidgeek/bufobjects/bindata"
 	"gopkg.in/ini.v1"
 	"encoding/json"
+	"github.com/emirpasic/gods/sets"
+	"github.com/emirpasic/gods/sets/hashset"
 )
 
 type field struct {
@@ -26,7 +28,7 @@ type field struct {
 }
 
 type object struct {
-	Id      interface{}
+	Id      uint16
 	Name    string
 	RawName string
 	Fields  []*field
@@ -35,13 +37,18 @@ type object struct {
 type document struct {
 	ObjectsImpl      string
 	ObjectNameSuffix string `json:"object_name_suffix"`
-	ObjectIdType     string `json:"object_id_type"`
 	Objects          []*object
 	Imports          []string `json:"imports"`
 	InterfaceName    string `json:"interface_name"`
 	FactoryName      string `json:"factory_name"`
 }
 
+var (
+	ErrTooManyObjects = errors.New("too many objects")
+)
+
+var idCounter uint16
+var usedIds sets.Set
 var doc *document
 var typeTmpl *template.Template
 var mainBuf *bytes.Buffer
@@ -61,9 +68,6 @@ func parseFile(file string, w io.Writer) error {
 		if section.Name() == "DEFAULT" {
 			continue
 		}
-		if !section.HasKey("_id") {
-			return errors.New("section '" + section.Name() + "' does not contain a _id")
-		}
 		fields := []*field{}
 
 		for _, k := range section.Keys() {
@@ -77,7 +81,17 @@ func parseFile(file string, w io.Writer) error {
 		}
 
 		name := section.Name()
-		id := section.Key("_id").Value()
+		var id uint16
+
+		if section.HasKey("_id") {
+			id = uint16(section.Key("_id").MustUint())
+			usedIds.Add(id)
+		} else {
+			id, err = getNextId()
+			if err != nil {
+				return err
+			}
+		}
 
 		objects = append(objects, &object{
 			Id:id,
@@ -94,6 +108,16 @@ func parseFile(file string, w io.Writer) error {
 	}
 
 	return nil
+}
+
+func getNextId() (uint16, error) {
+	for ; idCounter < (1 << 16) - 1; idCounter++ {
+		if !usedIds.Contains(idCounter) {
+			return idCounter, nil
+		}
+	}
+
+	return 0, ErrTooManyObjects
 }
 
 func isVariableSize(o *object) bool {
@@ -258,6 +282,8 @@ func main() {
 	}
 
 	mainBuf = &bytes.Buffer{}
+	idCounter = 1
+	usedIds = hashset.New()
 	if err = parseFile(files[0], mainBuf); err != nil {
 		log.Fatalln(err)
 		os.Remove(*outFlag)
