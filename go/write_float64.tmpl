@@ -1,5 +1,5 @@
 v{{.Name}} := *(*uint64)(unsafe.Pointer(&(rcv.{{.Name}})))
-buf[off] = byte(v)
+buf[off] = byte(v{{.Name}})
 buf[off + 1] = byte(v{{.Name}} >> 8)
 buf[off + 2] = byte(v{{.Name}} >> 16)
 buf[off + 3] = byte(v{{.Name}} >> 24)

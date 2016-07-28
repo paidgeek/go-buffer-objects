@@ -46,13 +46,13 @@ func (rcv *{{.Name}}) Size() int {
 func (rcv *{{.Name}}) IsVariableSize() bool {
 	return {{- if isVariableSize .}} true {{else}} false {{- end}}
 }
-func (rcv *{{.Name}}) Marshal(buf []byte, off int) int {
+func (rcv *{{.Name}}) MarshalBody(buf []byte, off int) int {
 	{{- range .Fields}}
 	{{write .}}
 	{{- end}}
 	return off
 }
-func (rcv *{{.Name}}) Unmarshal(buf []byte, off int) int {
+func (rcv *{{.Name}}) UnmarshalBody(buf []byte, off int) int {
 	{{- range .Fields}}
 	{{read .}}
 	{{- end}}

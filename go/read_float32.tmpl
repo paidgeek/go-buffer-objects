@@ -1,0 +1,6 @@
+v{{.Name}} := (uint32(buf[off + 0]) << 0) |
+				  (uint32(buf[off + 1]) << 8) |
+				  (uint32(buf[off + 2]) << 16) |
+				  (uint32(buf[off + 3]) << 24)
+rcv.{{.Name}} = *(*float32)(unsafe.Pointer(&v{{.Name}}))
+off += 4

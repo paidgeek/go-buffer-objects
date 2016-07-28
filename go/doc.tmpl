@@ -2,24 +2,30 @@
 
 package {{.PackageName}}
 import (
+	"io"
+	"errors"
 	{{- range .Imports}}
 	"{{.}}"
 	{{- end}}
 )
 const (
+MaxSize = {{.MaxObjectSize}}
 {{- range .Objects}}
 	Id{{.RawName}} uint16 = {{.Id}}
-{{end -}}
+{{- end -}}
+)
+var (
+	ErrUnknownObject = errors.New("unknown object")
 )
 type {{.InterfaceName}} interface {
 	Id() uint16
 	Size() int
 	IsVariableSize() bool
-	Marshal(buf []byte, off int) int
-	Unmarshal(buf []byte, off int) int
+	MarshalBody(buf []byte, off int) int
+	UnmarshalBody(buf []byte, off int) int
 }
 {{.ObjectsImpl}}
-func {{.FactoryName}}(id uint16) {{.InterfaceName}} {
+func New{{.InterfaceName}}WithId(id uint16) {{.InterfaceName}} {
 	switch id {
 	{{- range .Objects}}
 	case {{.Id}}:
@@ -28,4 +34,89 @@ func {{.FactoryName}}(id uint16) {{.InterfaceName}} {
 	default:
 		return nil
 	}
+}
+func Write{{.InterfaceName}}At(o {{.InterfaceName}}, buf []byte) (n int) {
+	id := o.Id()
+	buf[0] = byte(id)
+	buf[1] = byte(id >> 8)
+	if o.IsVariableSize() {
+		size := o.Size()
+		buf[2] = byte(size)
+      buf[3] = byte(size >> 8)
+		n = o.MarshalBody(buf, 4)
+	} else {
+		n = o.MarshalBody(buf, 2)
+	}
+	return n
+}
+func Write{{.InterfaceName}}To(o {{.InterfaceName}}, buf []byte, w io.Writer) (n int, err error) {
+	size := o.Size() + 2
+	if o.IsVariableSize() {
+		size += 2
+	}
+	buf = buf[:size]
+	Write{{.InterfaceName}}At(o, buf)
+	total := 0
+	for total < size && err == nil {
+		n, err = w.Write(buf[total:])
+		total += n
+	}
+	return total, err
+}
+func Read{{.InterfaceName}}At(buf []byte) (o {{.InterfaceName}}) {
+	id := uint16(buf[0] | (buf[1] << 8))
+	o = New{{.InterfaceName}}WithId(id)
+	if o == nil {
+		return nil
+	}
+	if o.IsVariableSize() {
+		buf = buf[4:]
+	} else {
+		buf = buf[2:]
+	}
+	o.UnmarshalBody(buf, 0)
+   return o
+}
+func Read{{.InterfaceName}}From(buf []byte, r io.Reader) (o {{.InterfaceName}}, err error) {
+	id := uint16(0)
+	n := 0
+	total := 0
+	for total < 2 && err == nil {
+		n, err = r.Read(buf[total:2])
+		total += n
+	}
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	id = uint16(buf[0] | (buf[1] << 8))
+	o = New{{.InterfaceName}}WithId(id)
+	if o == nil {
+		return nil, ErrUnknownObject
+	}
+	size := 0
+	if o.IsVariableSize() {
+		total = 0
+		n = 0
+		for total < 2 && err == nil {
+			n, err = r.Read(buf[total:2])
+			total += n
+		}
+		if err != nil {
+			return nil, err
+		}
+		size = int(buf[0] | (buf[1] << 8))
+	} else {
+		size = o.Size()
+	}
+	total = 0
+	n = 0
+	for total < size && err == nil {
+		n, err = r.Read(buf[total:size])
+		total += n
+	}
+	if err != nil {
+		return nil, err
+	}
+	o.UnmarshalBody(buf, 0)
+	return o, nil
 }

@@ -1,6 +1,2 @@
-if rcv.{{.Name}} {
-	buf[off] = 1
-} else {
-	buf[off] = 0
-}
+rcv.{{.Name}} = byte(buf[off]) == 1
 off += 1

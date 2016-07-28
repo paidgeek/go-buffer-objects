@@ -1,8 +1,7 @@
 {
-	"package_name": "message",
 	"interface_name": "Message",
 	"object_name_suffix": "Message",
-	"factory_name": "NewMessageWithId",
+	"max_object_size": 4096,
 	"imports": [
 		"unsafe"
 	]

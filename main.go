@@ -35,13 +35,13 @@ type object struct {
 }
 
 type document struct {
+	MaxObjectSize    int `json:"max_object_size"`
 	PackageName      string `json:"package_name"`
 	ObjectsImpl      string
 	ObjectNameSuffix string `json:"object_name_suffix"`
 	Objects          []*object
 	Imports          []string `json:"imports"`
 	InterfaceName    string `json:"interface_name"`
-	FactoryName      string `json:"factory_name"`
 }
 
 var (
@@ -246,6 +246,10 @@ func main() {
 	for _, n := range bindata.AssetNames() {
 		name := n[strings.IndexByte(n, '/') + 1:strings.LastIndexByte(n, '.')]
 		newTmpl, err := typeTmpl.New(name).Parse(string(bindata.MustAsset(n)))
+		if err != nil {
+			log.Fatalln(err)
+			return
+		}
 		typeTmpl, err = typeTmpl.AddParseTree(name, newTmpl.Tree)
 		if err != nil {
 			log.Fatalln(err)
@@ -262,7 +266,7 @@ func main() {
 		Objects:[]*object{},
 		PackageName:"main",
 		InterfaceName:"Object",
-		FactoryName:"NewObjectWithId",
+		MaxObjectSize:4096,
 	}
 	if err := json.Unmarshal(cfgFile, doc); err != nil {
 		log.Fatalln(err)

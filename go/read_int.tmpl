@@ -1,5 +1,2 @@
-buf[off] = byte(rcv.{{.Name}})
-buf[off + 1] = byte(rcv.{{.Name}} >> 8)
-buf[off + 2] = byte(rcv.{{.Name}} >> 16)
-buf[off + 3] = byte(rcv.{{.Name}} >> 24)
+rcv.{{.Name}} = int(buf[off] | (buf[off + 1] << 8) | (buf[off + 2] << 16) | (buf[off + 3] << 24))
 off += 4

@@ -1,10 +1,10 @@
-v{{.Name}} := *(*uint64)(unsafe.Pointer(&(rcv.{{.Name}})))
-buf[off] = byte(v)
-buf[off + 1] = byte(v{{.Name}} >> 8)
-buf[off + 2] = byte(v{{.Name}} >> 16)
-buf[off + 3] = byte(v{{.Name}} >> 24)
-buf[off + 4] = byte(v{{.Name}} >> 32)
-buf[off + 5] = byte(v{{.Name}} >> 40)
-buf[off + 6] = byte(v{{.Name}} >> 48)
-buf[off + 7] = byte(v{{.Name}} >> 56)
+v{{.Name}} := (uint64(buf[off + 0]) << 0) |
+				  (uint64(buf[off + 1]) << 8) |
+				  (uint64(buf[off + 2]) << 16) |
+				  (uint64(buf[off + 3]) << 24) |
+				  (uint64(buf[off + 4]) << 32) |
+			  	  (uint64(buf[off + 5]) << 40) |
+			  	  (uint64(buf[off + 6]) << 48) |
+			  	  (uint64(buf[off + 7]) << 56)
+rcv.{{.Name}} = *(*float64)(unsafe.Pointer(&v{{.Name}}))
 off += 8

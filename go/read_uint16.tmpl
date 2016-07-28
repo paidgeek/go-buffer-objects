@@ -1,3 +1,2 @@
-buf[off] = byte(rcv.{{.Name}})
-buf[off + 1] = byte(rcv.{{.Name}} >> 8)
+rcv.{{.Name}} = uint16(buf[off] | (buf[off + 1] << 8))
 off += 2
