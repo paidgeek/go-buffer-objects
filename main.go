@@ -15,10 +15,10 @@ import (
 	"io"
 	"path/filepath"
 	"github.com/paidgeek/bufobjects/bindata"
-	"gopkg.in/ini.v1"
-	"encoding/json"
 	"github.com/emirpasic/gods/sets"
 	"github.com/emirpasic/gods/sets/hashset"
+	"gopkg.in/yaml.v2"
+	"reflect"
 )
 
 type field struct {
@@ -60,33 +60,42 @@ func parseFile(file string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	schema, err := ini.Load(data)
+	yamlData := make(map[string]interface{})
+	err = yaml.Unmarshal(data, yamlData)
 	if err != nil {
 		return err
 	}
 
-	for _, section := range schema.Sections() {
-		if section.Name() == "DEFAULT" {
-			continue
-		}
+	for key, val := range yamlData {
 		fields := []*field{}
-
-		for _, k := range section.Keys() {
-			if k.Name() != "_id" {
-				fields = append(fields, &field{
-					Name:k.Name(),
-					Type:k.Value(),
-					CamelCase:fmt.Sprintf("%c%s", unicode.ToLower([]rune(k.Name())[0]), k.Name()[1:]),
-				})
-			}
-		}
-
-		name := section.Name()
 		var id uint16
 
-		if section.HasKey("_id") {
-			id = uint16(section.Key("_id").MustUint())
-			usedIds.Add(id)
+		if reflect.ValueOf(val).Kind() == reflect.Map {
+			fieldData := val.(map[interface{}]interface{})
+
+			for fn, ft := range fieldData {
+				if fn == "_id" {
+					continue
+				}
+
+				fieldName := fmt.Sprintf("%v", fn)
+				fieldType := fmt.Sprintf("%v", ft)
+				fields = append(fields, &field{
+					Name:fieldName,
+					Type:fieldType,
+					CamelCase:fmt.Sprintf("%c%s", unicode.ToLower([]rune(fieldName)[0]), fieldName[1:]),
+				})
+			}
+
+			if idVal, ok := fieldData["_id"]; ok {
+				id = idVal.(uint16)
+				usedIds.Add(id)
+			} else {
+				id, err = getNextId()
+				if err != nil {
+					return err
+				}
+			}
 		} else {
 			id, err = getNextId()
 			if err != nil {
@@ -96,8 +105,8 @@ func parseFile(file string, w io.Writer) error {
 
 		objects = append(objects, &object{
 			Id:id,
-			Name:name + doc.ObjectNameSuffix,
-			RawName:name,
+			Name:key + doc.ObjectNameSuffix,
+			RawName:key,
 			Fields:fields,
 		})
 	}
@@ -203,9 +212,13 @@ func readArrayIndex(f *field) (string, error) {
 	return read(nf)
 }
 
-var langFlag = flag.String("t", "", "target language")
 var schemaFlag = flag.String("i", "", "input schema files pattern")
-var outFlag = flag.String("o", "net_objects_result.go", "result file name")
+var outFlag = flag.String("o", "bufobjects_gen.go", "result file name")
+var langFlag = flag.String("lang", "", "target language")
+var pkgFlag = flag.String("pkg", "main", "result package name")
+var interfaceNameFlag = flag.String("interface", "Object", "interface name")
+var suffixFlag = flag.String("name-suffix", "", "object name suffix")
+var maxSizeFlag = flag.Uint("max-size", 4096, "max object size")
 
 func main() {
 	flag.Parse()
@@ -257,20 +270,12 @@ func main() {
 		}
 	}
 
-	cfgFile, err := ioutil.ReadFile("./bufobjects.json")
-	if err != nil {
-		log.Fatalln(err)
-		return
-	}
 	doc = &document{
 		Objects:[]*object{},
-		PackageName:"main",
-		InterfaceName:"Object",
-		MaxObjectSize:4096,
-	}
-	if err := json.Unmarshal(cfgFile, doc); err != nil {
-		log.Fatalln(err)
-		return
+		PackageName:*pkgFlag,
+		InterfaceName:*interfaceNameFlag,
+		ObjectNameSuffix:*suffixFlag,
+		MaxObjectSize:int(*maxSizeFlag),
 	}
 
 	mainBuf = &bytes.Buffer{}
@@ -293,7 +298,20 @@ func main() {
 		log.Fatalln(err)
 		return
 	}
+
 	doc.ObjectsImpl = mainBuf.String()
+	if lang == "go" {
+		for _, obj := range doc.Objects {
+			for _, f := range obj.Fields {
+				if strings.Contains(f.Type, "float") {
+					doc.Imports = append(doc.Imports, "unsafe")
+					goto OUT
+				}
+			}
+		}
+	}
+	OUT:
+
 	err = docTmpl.ExecuteTemplate(resFile, "doc", doc)
 	if err != nil {
 		log.Fatalln(err)

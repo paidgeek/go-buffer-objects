@@ -1,8 +1,0 @@
-{
-	"interface_name": "Message",
-	"object_name_suffix": "Message",
-	"max_object_size": 4096,
-	"imports": [
-		"unsafe"
-	]
-}

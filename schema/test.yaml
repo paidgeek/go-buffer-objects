@@ -1,0 +1,4 @@
+Test:
+   Name: string
+   Number: int64
+   Value: float64
