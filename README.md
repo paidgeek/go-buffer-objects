@@ -3,6 +3,7 @@ Generate code for fast serialization and deserialization based on YAML schema.
 
 ## Getting Started
 ```
+go get github.com/paidgeek/bufobjects
 go install github.com/paidgeek/bufobjects
 ```
 
@@ -48,7 +49,7 @@ type Message interface {
 	Reset()
 }
 ```
-and a few helper functions:
+and helper functions:
 ```go
 func NewHelloMessage(text  string,time  int64) *HelloMessage {}
 func NewMessageWithId(id uint16) Message {}
@@ -57,7 +58,7 @@ func WriteMessageTo(o Message, buf []byte, w io.Writer) (n int, err error) {}
 func ReadMessageAt(buf []byte) (o Message) {}
 func ReadMessageFrom(buf []byte, r io.Reader) (o Message, err error) {}
 ```
-Using `WriteMessage*` you can serialize any generated object and read it using `ReadMessage*`.
+Using `WriteMessage*` you can serialize any generated struct and deserialize it using `ReadMessage*`.
 ```go
 buf := make([]byte, message.MaxSize)
 msg := message.NewHelloMessage("Hello, World!", time.Now().Unix())
