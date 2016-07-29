@@ -1,5 +1,5 @@
 # bufobjects
-Generate code for fast serialization and deserialization based on YAML schema.
+Generate code for fast serialization and deserialization based on YAML schema. Currently only for Go.
 
 ## Getting Started
 ```
