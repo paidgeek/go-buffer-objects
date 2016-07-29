@@ -1,5 +1,0 @@
-n{{.Name}} := int(buf[off] | (buf[off + 1] << 8))
-d{{.Name}} := make([]byte, n{{.Name}})
-copy(d{{.Name}}, buf[off + 2:])
-rcv.{{.Name}} = string(d{{.Name}})
-off += n{{.Name}} + 2

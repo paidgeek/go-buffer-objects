@@ -1,0 +1,2 @@
+rcv.{{.Name}} = uint(buf[off]) | (uint(buf[off + 1] << 8)) | (uint(buf[off + 2]) << 16) | (uint(buf[off + 3]) << 24))
+off += 4

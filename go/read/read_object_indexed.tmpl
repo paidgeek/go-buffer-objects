@@ -1,0 +1,15 @@
+{{if .IsSlice}}
+	ln{{.Name}} := uint16(buf[off]) | (uint16(buf[off + 1]) << 8)
+	off += 2
+	rcv.{{.Name}} = make([]*{{.Type}}, ln{{.Name}})
+	for i := uint16(0); i < ln{{.Name}}; i++ {
+   	rcv.{{.Name}}[i] = &{{.Type}}{}
+   	off = rcv.{{.Name}}[i].UnmarshalBody(buf, off)
+   }
+{{else}}
+	rcv.{{.Name}} = [{{.ArraySize}}]*{{.Type}}{}
+	for i := 0; i < {{.ArraySize}}; i++ {
+		rcv.{{.Name}}[i] = &{{.Type}}{}
+   	off = rcv.{{.Name}}[i].UnmarshalBody(buf, off)
+   }
+{{end}}

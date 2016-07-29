@@ -19,27 +19,33 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	"gopkg.in/yaml.v2"
 	"reflect"
+	"regexp"
 )
 
-type field struct {
+type Field struct {
 	Name      string
 	CamelCase string
 	Type      string
+	ArraySize int
+	IsObject  bool
+	IsArray   bool
+	IsSlice   bool
 }
 
-type object struct {
-	Id      uint16
-	Name    string
-	RawName string
-	Fields  []*field
+type Object struct {
+	Id             uint16
+	Name           string
+	RawName        string
+	IsVariableSize bool
+	Fields         []*Field
 }
 
-type document struct {
+type Document struct {
 	MaxObjectSize    int `json:"max_object_size"`
 	PackageName      string `json:"package_name"`
 	ObjectsImpl      string
 	ObjectNameSuffix string `json:"object_name_suffix"`
-	Objects          []*object
+	Objects          []*Object
 	Imports          []string `json:"imports"`
 	InterfaceName    string `json:"interface_name"`
 }
@@ -50,47 +56,59 @@ var (
 
 var idCounter uint16
 var usedIds sets.Set
-var doc *document
+var doc *Document
 var typeTmpl *template.Template
 var mainBuf *bytes.Buffer
 
 func parseFile(file string, w io.Writer) error {
-	objects := []*object{}
+	objects := []*Object{}
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
 	}
-	yamlData := make(map[string]interface{})
+	yamlData := &yaml.MapSlice{}
 	err = yaml.Unmarshal(data, yamlData)
 	if err != nil {
 		return err
 	}
 
-	for key, val := range yamlData {
-		fields := []*field{}
-		var id uint16
+	for _, val := range *yamlData {
+		fields := []*Field{}
+		id := uint16(0)
+		key := val.Key.(string)
 
-		if reflect.ValueOf(val).Kind() == reflect.Map {
-			fieldData := val.(map[interface{}]interface{})
+		if reflect.ValueOf(val.Value).Kind() == reflect.Slice {
+			for _, fieldData := range val.Value.(yaml.MapSlice) {
+				fieldName := fmt.Sprintf("%v", fieldData.Key)
+				fieldType := fmt.Sprintf("%v", fieldData.Value)
 
-			for fn, ft := range fieldData {
-				if fn == "_id" {
+				if fieldName == "_id" {
+					parsedId, err := strconv.ParseUint(fieldType, 10, 16)
+					if err != nil {
+						return err
+					}
+					id = uint16(parsedId)
+					usedIds.Add(id)
+
 					continue
 				}
 
-				fieldName := fmt.Sprintf("%v", fn)
-				fieldType := fmt.Sprintf("%v", ft)
-				fields = append(fields, &field{
+				f := &Field{
 					Name:fieldName,
 					Type:fieldType,
 					CamelCase:fmt.Sprintf("%c%s", unicode.ToLower([]rune(fieldName)[0]), fieldName[1:]),
-				})
+				}
+				f.IsObject = isObject(f)
+				f.IsSlice = isSlice(f)
+				f.IsArray = isArray(f)
+				if f.IsArray {
+					f.ArraySize = arraySize(f)
+				}
+				f.Type = baseType(f)
+				fields = append(fields, f)
 			}
 
-			if idVal, ok := fieldData["_id"]; ok {
-				id = idVal.(uint16)
-				usedIds.Add(id)
-			} else {
+			if id == 0 {
 				id, err = getNextId()
 				if err != nil {
 					return err
@@ -103,15 +121,19 @@ func parseFile(file string, w io.Writer) error {
 			}
 		}
 
-		objects = append(objects, &object{
+		obj := &Object{
 			Id:id,
 			Name:key + doc.ObjectNameSuffix,
 			RawName:key,
 			Fields:fields,
-		})
+		}
+		objects = append(objects, obj)
 	}
 
 	doc.Objects = append(doc.Objects, objects...)
+	for _, obj := range doc.Objects {
+		obj.IsVariableSize = isVariableSize(obj)
+	}
 
 	if err := typeTmpl.ExecuteTemplate(w, "objects", objects); err != nil {
 		return err
@@ -130,65 +152,67 @@ func getNextId() (uint16, error) {
 	return 0, ErrTooManyObjects
 }
 
-func isVariableSize(o *object) bool {
-	for _, f := range o.Fields {
-		if f.Type == "string" {
-			return true
+func getObjectForType(t string) *Object {
+	for _, obj := range doc.Objects {
+		if obj.RawName == t {
+			return obj
 		}
 	}
 
-	return false
+	return nil
 }
 
-func isArray(f *field) bool {
-	return strings.HasPrefix(f.Type, "[")
-}
-
-func arraySize(f *field) int {
-	t := f.Type
-	n, err := strconv.ParseInt(t[1:strings.IndexByte(t, ']')], 10, 32)
-	if err != nil {
-		log.Fatalln(err)
-		os.Exit(1)
-	}
-	return int(n)
-}
-
-func arrayType(t string) string {
-	return t[strings.LastIndexByte(t, ']') + 1:]
-}
-
-func executeTmpl(f *field, prefix string) (string, error) {
+func executeTmpl(name string, in interface{}) (string, error) {
 	buf := &bytes.Buffer{}
 	var ft *template.Template
+	ft = typeTmpl.Lookup(name)
+	if ft == nil {
+		return "", errors.New("template '" + name + "' not found")
+	}
+
+	err := ft.Execute(buf, in)
+	return buf.String(), err
+}
+
+func write(f *Field) (string, error) {
 	var t string
 
-	if isArray(f) {
+	if f.IsObject && (f.IsArray || f.IsSlice) {
+		t = "object_indexed"
+	} else if isObject(f) {
+		t = "object"
+	} else if isArray(f) {
 		t = "array"
+	} else if isSlice(f) {
+		t = "slice"
 	} else {
 		t = f.Type
 	}
 
-	ft = typeTmpl.Lookup(prefix + "_" + t)
-	if ft == nil {
-		return "", errors.New("template '" + prefix + "_" + t + "' not found")
+	return executeTmpl("write/write_" + t, f)
+}
+
+func read(f *Field) (string, error) {
+	var t string
+
+	if f.IsObject && (f.IsArray || f.IsSlice) {
+		t = "object_indexed"
+	} else if isObject(f) {
+		t = "object"
+	} else if isArray(f) {
+		t = "array"
+	} else if isSlice(f) {
+		t = "slice"
+	} else {
+		t = f.Type
 	}
 
-	err := ft.Execute(buf, f)
-	return buf.String(), err
+	return executeTmpl("read/read_" + t, f)
 }
 
-func write(f *field) (string, error) {
-	return executeTmpl(f, "write")
-}
-
-func read(f *field) (string, error) {
-	return executeTmpl(f, "read")
-}
-
-func writeArrayIndex(f *field) (string, error) {
-	ai := typeTmpl.Lookup("array_index.tmpl")
-	nf := &field{}
+func writeArrayIndex(f *Field) (string, error) {
+	ai := typeTmpl.Lookup("array_index")
+	nf := &Field{}
 	nf.Type = arrayType(f.Type)
 	buf := &bytes.Buffer{}
 	err := ai.Execute(buf, f)
@@ -199,9 +223,9 @@ func writeArrayIndex(f *field) (string, error) {
 	return write(nf)
 }
 
-func readArrayIndex(f *field) (string, error) {
-	ai := typeTmpl.Lookup("array_index.tmpl")
-	nf := &field{}
+func readArrayIndex(f *Field) (string, error) {
+	ai := typeTmpl.Lookup("array_index")
+	nf := &Field{}
 	nf.Type = arrayType(f.Type)
 	buf := &bytes.Buffer{}
 	err := ai.Execute(buf, f)
@@ -212,13 +236,13 @@ func readArrayIndex(f *field) (string, error) {
 	return read(nf)
 }
 
-var schemaFlag = flag.String("i", "", "input schema files pattern")
-var outFlag = flag.String("o", "bufobjects_gen.go", "result file name")
-var langFlag = flag.String("lang", "", "target language")
-var pkgFlag = flag.String("pkg", "main", "result package name")
-var interfaceNameFlag = flag.String("interface", "Object", "interface name")
-var suffixFlag = flag.String("name-suffix", "", "object name suffix")
-var maxSizeFlag = flag.Uint("max-size", 4096, "max object size")
+var schemaFlag = flag.String("i", "", "schema files pattern")
+var outFlag = flag.String("o", "bufobjects_gen.go", "result file path")
+var langFlag = flag.String("t", "", "target language")
+var pkgFlag = flag.String("p", "main", "result package name")
+var interfaceNameFlag = flag.String("interface", "BufObject", "interface name")
+var suffixFlag = flag.String("name-suffix", "", "optional object name suffix")
+var maxSizeFlag = flag.Uint("max-size", 4096, "max object size (used as read/write buffer size)")
 
 func main() {
 	flag.Parse()
@@ -247,13 +271,11 @@ func main() {
 	}
 
 	typeTmpl = template.New("type").Funcs(template.FuncMap{
-		"isVariableSize":isVariableSize,
-		"isArray":isArray,
-		"arraySize":arraySize,
 		"write":write,
 		"read":read,
 		"writeArrayIndex":writeArrayIndex,
 		"readArrayIndex":readArrayIndex,
+		"baseSizeOf":baseSizeOf,
 	})
 
 	for _, n := range bindata.AssetNames() {
@@ -270,8 +292,8 @@ func main() {
 		}
 	}
 
-	doc = &document{
-		Objects:[]*object{},
+	doc = &Document{
+		Objects:[]*Object{},
 		PackageName:*pkgFlag,
 		InterfaceName:*interfaceNameFlag,
 		ObjectNameSuffix:*suffixFlag,
@@ -316,4 +338,116 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+// utils
+
+func baseType(f *Field) string {
+	idx := strings.LastIndexByte(f.Type, ']')
+	t := f.Type
+	if idx > -1 {
+		t = f.Type[idx + 1:]
+	}
+	return t
+}
+
+func isVariableSize(o *Object) bool {
+	for _, f := range o.Fields {
+		if f.Type == "string" || isSlice(f) {
+			return true
+		} else if isObject(f) {
+			obj := getObjectForType(f.Type)
+			if obj == nil {
+				log.Fatalf("%v not defined\n", f.Type)
+				os.Exit(1)
+			}
+			if isVariableSize(obj) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func baseSizeOf(f *Field) int {
+	var t = f.Type
+
+	if isArray(f) || isSlice(f) {
+		t = arrayType(t)
+	}
+
+	switch t {
+	case "bool":
+		return 1
+	case "byte":
+		return 1
+	case "int":
+		return 4
+	case "int8":
+		return 1
+	case "int16":
+		return 2
+	case "int32":
+		return 4
+	case "int64":
+		return 8
+	case "uint":
+		return 4
+	case "uint8":
+		return 1
+	case "uint16":
+		return 2
+	case "uint32":
+		return 4
+	case "uint64":
+		return 8
+	case "float32":
+		return 4
+	case "float64":
+		return 8
+	}
+
+	log.Fatalf("baseSizeOf: invalid type %v\n", t)
+	os.Exit(1)
+	return 0
+}
+
+func isArray(f *Field) bool {
+	matched, err := regexp.MatchString("^\\[[0-9]", f.Type)
+	if err != nil {
+		log.Fatalln(err)
+		os.Exit(1)
+	}
+	return matched
+}
+
+func isObject(f *Field) bool {
+	return isObjectType(f.Type)
+}
+
+func isObjectType(t string) bool {
+	idx := strings.LastIndexByte(t, ']')
+	if idx > -1 {
+		t = t[idx + 1:]
+	}
+	return unicode.IsUpper([]rune(t)[0])
+}
+
+func isSlice(f *Field) bool {
+	return strings.HasPrefix(f.Type, "[]")
+}
+
+func arraySize(f *Field) int {
+	t := f.Type
+	n, err := strconv.ParseInt(t[1:strings.IndexByte(t, ']')], 10, 32)
+	if err != nil {
+		log.Fatalln(err)
+		os.Exit(1)
+	}
+	return int(n)
+}
+
+func arrayType(t string) string {
+	return t[strings.LastIndexByte(t, ']') + 1:]
 }

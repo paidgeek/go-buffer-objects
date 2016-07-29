@@ -1,0 +1,6 @@
+n{{.Name}} := int(buf[off]) | (int(buf[off + 1]) << 8)
+d{{.Name}} := make([]byte, n{{.Name}})
+off += 2
+copy(d{{.Name}}, buf[off:])
+rcv.{{.Name}} = string(d{{.Name}})
+off += n{{.Name}}

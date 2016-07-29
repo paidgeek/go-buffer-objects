@@ -1,0 +1,7 @@
+ln{{.Name}} := uint16(len(rcv.{{.Name}}))
+buf[off] = byte(ln{{.Name}})
+buf[off + 1] = byte(ln{{.Name}} >> 8)
+off += 2
+for i := uint16(0); i < ln{{.Name}}; i++ {
+	{{writeArrayIndex .}}
+}

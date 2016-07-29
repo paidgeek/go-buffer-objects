@@ -1,6 +1,14 @@
 type {{.Name}} struct {
 	{{- range .Fields}}
-	{{.Name}} {{.Type}}
+	{{- if .IsArray}}
+		{{.Name}} [{{.ArraySize}}]{{if .IsObject}}*{{end}}{{.Type}}
+	{{- else if .IsSlice}}
+		{{.Name}} []{{if .IsObject}}*{{end}}{{.Type}}
+	{{- else if .IsObject}}
+   	{{.Name}} *{{.Type}}
+	{{- else}}
+		{{.Name}} {{.Type}}
+	{{- end}}
 	{{- end}}
 }
 func (rcv *{{.Name}}) Id() uint16 {
@@ -9,42 +17,43 @@ func (rcv *{{.Name}}) Id() uint16 {
 func (rcv *{{.Name}}) Size() int {
 	size := 0
 	{{- range .Fields}}
-	{{- if eq .Type "bool"}}
-	size += 1
-	{{- else if eq .Type "byte"}}
-	size += 1
-	{{- else if eq .Type "int"}}
-	size += 4
-	{{- else if eq .Type "int8"}}
-	size += 1
-	{{- else if eq .Type "int16"}}
-	size += 2
-	{{- else if eq .Type "int32"}}
-	size += 4
-	{{- else if eq .Type "int64"}}
-	size += 8
-	{{- else if eq .Type "uint"}}
-	size += 4
-	{{- else if eq .Type "uint8"}}
-	size += 1
-	{{- else if eq .Type "uint16"}}
-	size += 2
-	{{- else if eq .Type "uint32"}}
-	size += 4
-	{{- else if eq .Type "uint64"}}
-	size += 8
-	{{- else if eq .Type "float32"}}
-	size += 4
-	{{- else if eq .Type "float64"}}
-	size += 8
-	{{- else if eq .Type "string"}}
-	size += len(rcv.{{.Name}}) + 2
+	{{- if .IsArray}}
+		{{if .IsObject}}
+			for i := 0; i < {{.ArraySize}}; i++ {
+				size += rcv.{{.Name}}[i].Size()
+			}
+		{{else if eq .Type "string"}}
+			for i := 0; i < {{.ArraySize}}; i++ {
+				size += len(rcv.{{.Name}}[i]) + 2
+			}
+		{{else}}
+			size += {{.ArraySize}} * {{baseSizeOf .}}
+		{{end}}
+	{{else if .IsSlice}}
+		size += 2
+		{{if .IsObject}}
+			for i := 0; i < {{.ArraySize}}; i++ {
+				size += rcv.{{.Name}}[i].Size()
+			}
+		{{else if eq .Type "string"}}
+			for i := 0; i < {{.ArraySize}}; i++ {
+				size += len(rcv.{{.Name}}[i]) + 2
+			}
+		{{else}}
+			size += {{.ArraySize}} * {{baseSizeOf .}}
+		{{end}}
+	{{else if .IsObject}}
+		size += rcv.{{.Name}}.Size()
+	{{else if eq .Type "string"}}
+		size += len(rcv.{{.Name}}) + 2
+	{{else}}
+		size += {{baseSizeOf .}}
 	{{- end}}
 	{{- end}}
 	return size
 }
 func (rcv *{{.Name}}) IsVariableSize() bool {
-	return {{- if isVariableSize .}} true {{else}} false {{- end}}
+	return {{- if .IsVariableSize}} true {{else}} false {{- end}}
 }
 func (rcv *{{.Name}}) MarshalBody(buf []byte, off int) int {
 	{{- range .Fields}}
@@ -58,7 +67,10 @@ func (rcv *{{.Name}}) UnmarshalBody(buf []byte, off int) int {
 	{{- end}}
 	return off
 }
-func New{{.Name}}({{$params := .Fields}}{{range $index, $element := .Fields}}{{if $index}},{{end}}{{$element.CamelCase}} {{$element.Type}}{{end}}) *{{.Name}} {
+func (rcv *{{.Name}}) Reset() {
+	*rcv = {{.Name}}{}
+}
+func New{{.Name}}({{$params := .Fields}}{{range $index, $element := .Fields}}{{if $index}},{{end}}{{$element.CamelCase}} {{if .IsSlice}}[]{{else if .IsArray}}[{{.ArraySize}}]{{end}} {{if $element.IsObject}}*{{end}}{{$element.Type}}{{end}}) *{{.Name}} {
 	return &{{.Name}}{
 		{{- range .Fields}}
 		{{.Name}}: {{.CamelCase}},

@@ -23,6 +23,7 @@ type {{.InterfaceName}} interface {
 	IsVariableSize() bool
 	MarshalBody(buf []byte, off int) int
 	UnmarshalBody(buf []byte, off int) int
+	Reset()
 }
 {{.ObjectsImpl}}
 func New{{.InterfaceName}}WithId(id uint16) {{.InterfaceName}} {

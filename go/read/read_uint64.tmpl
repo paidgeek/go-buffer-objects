@@ -1,0 +1,2 @@
+rcv.{{.Name}} = uint64(buf[off]) | (uint64(buf[off + 1]) << 8) | (uint64(buf[off + 2]) << 16) | (uint64(buf[off + 3]) << 24) | (uint64(buf[off + 4]) << 32) | (uint64(buf[off + 5]) << 40) | (uint64(buf[off + 6]) << 48) | (uint64(buf[off + 7]) << 56)
+off += 8
