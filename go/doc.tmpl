@@ -4,6 +4,7 @@ package {{.PackageName}}
 import (
 	"io"
 	"errors"
+	"encoding/json"
 	{{- range .Imports}}
 	"{{.}}"
 	{{- end}}

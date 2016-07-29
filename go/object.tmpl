@@ -70,6 +70,13 @@ func (rcv *{{.Name}}) UnmarshalBody(buf []byte, off int) int {
 func (rcv *{{.Name}}) Reset() {
 	*rcv = {{.Name}}{}
 }
+func (rcv *{{.Name}}) String() string {
+	data, err := json.Marshal(rcv)
+	if err != nil {
+		return ""
+	}
+	return "{{.Name}}: " + string(data)
+}
 func New{{.Name}}({{$params := .Fields}}{{range $index, $element := .Fields}}{{if $index}},{{end}}{{$element.CamelCase}} {{if .IsSlice}}[]{{else if .IsArray}}[{{.ArraySize}}]{{end}} {{if $element.IsObject}}*{{end}}{{$element.Type}}{{end}}) *{{.Name}} {
 	return &{{.Name}}{
 		{{- range .Fields}}
