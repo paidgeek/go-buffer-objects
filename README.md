@@ -1,20 +1,20 @@
-# bufobjects
-[![Go Report Card](https://goreportcard.com/badge/github.com/paidgeek/bufobjects)](https://goreportcard.com/report/github.com/paidgeek/bufobjects)
-[![codebeat badge](https://codebeat.co/badges/a65bc95b-9e87-4f2e-9cef-b7bbb898fbfe)](https://codebeat.co/projects/github-com-paidgeek-bufobjects)
+# Go Buffer Objects
+[![Go Report Card](https://goreportcard.com/badge/github.com/paidgeek/go-buffer-objects)](https://goreportcard.com/report/github.com/paidgeek/go-buffer-objects)
+[![codebeat badge](https://codebeat.co/badges/6b088eff-b986-4848-aaae-5e341432b05a)](https://codebeat.co/projects/github-com-paidgeek-go-buffer-objects)
 
-Generate code for fast serialization and deserialization based on YAML schema. Currently only for Go.
+Generate code for fast serialization and deserialization based on YAML schema.
 
 ## Installation
 ```
-go get github.com/paidgeek/bufobjects
-go install github.com/paidgeek/bufobjects
+go get github.com/paidgeek/go-buffer-objects
+go install github.com/paidgeek/go-buffer-objects
 ```
 
 ## Usage
 ```
-Usage of bufobjects:
+Usage of go-buffer-objects:
 
-    $ bufobjects [options]
+    $ go-buffer-objects [options]
 
 Options:
     -i string
